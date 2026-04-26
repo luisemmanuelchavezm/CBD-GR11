@@ -43,6 +43,7 @@ export function analyzeSchemaQuality(schema) {
     const atomicityWarnings = detectNonAtomicColumns(table);
     const tablePartialDependencies = detectPartialDependencies(table);
     const tableTransitiveDependencies = detectTransitiveDependencies(table, descriptorGroup);
+    const isolatedTable = detectIsolatedTable(table, schema.tables, schema.relationships);
     const missingPrimaryKey = detectLikelyMissingPrimaryKey(table);
     const missingRelationships = detectLikelyMissingRelationships(table, schema.tables);
     const redundantReferenceColumns = detectRedundantReferenceColumns(table, schema.tables);
@@ -100,6 +101,12 @@ export function analyzeSchemaQuality(schema) {
       recommendations.push(`La tabla ${table.name} ya representa una relación N:M y conviene mantenerla como puente.`);
     }
 
+    if (isolatedTable) {
+      structuralFindings.push(isolatedTable);
+      issues.push(isolatedTable);
+      recommendations.push(`Revisar si ${table.name} deberia relacionarse con otra entidad o si realmente debe permanecer aislada.`);
+    }
+
     if (missingPrimaryKey) {
       structuralFindings.push(missingPrimaryKey);
       issues.push(missingPrimaryKey);
@@ -138,6 +145,8 @@ export function analyzeSchemaQuality(schema) {
   thirdNormalForm.passed = thirdNormalForm.findings.length === 0;
 
   const dedupedRecommendations = dedupeStrings(recommendations);
+  const normalFormFindingSet = new Set([firstNormalForm, secondNormalForm, thirdNormalForm].flatMap((entry) => entry.findings));
+  const uniqueStructuralFindings = dedupeStrings(structuralFindings).filter((detail) => !normalFormFindingSet.has(detail));
 
   return {
     summary: {
@@ -156,7 +165,7 @@ export function analyzeSchemaQuality(schema) {
     partialDependencies,
     transitiveDependencies,
     junctionTables,
-    structuralFindings,
+    structuralFindings: uniqueStructuralFindings,
   };
 }
 
@@ -230,7 +239,6 @@ export function buildNormalizationSuggestion(schema) {
   return {
     analysis,
     normalizedSchema,
-    normalizedSql: buildNormalizedSqlProposal(normalizedSchema),
   };
 }
 
@@ -569,6 +577,34 @@ function detectLikelyMissingPrimaryKey(table) {
   return `La tabla ${table.name} parece tener un identificador (${candidate.name}) pero no declara clave primaria.`;
 }
 
+function detectIsolatedTable(table, tables, relationships) {
+  if (tables.length <= 1) {
+    return null;
+  }
+
+  const hasRelationship = relationships.some(
+    (relationship) => relationship.fromTable === table.name || relationship.toTable === table.name
+  );
+
+  if (hasRelationship || isLikelyStandaloneCatalogTable(table)) {
+    return null;
+  }
+
+  return `La tabla ${table.name} no participa en ninguna relacion del esquema.`;
+}
+
+function isLikelyStandaloneCatalogTable(table) {
+  const lowerName = table.name.toLowerCase();
+  const nonKeyColumns = table.columns.filter((column) => !column.isPrimaryKey && !column.isForeignKey);
+  const descriptorColumns = nonKeyColumns.filter((column) =>
+    /^(name|label|code|value|description|title|type|status|category)$/i.test(column.name)
+  );
+  const hasCatalogLikeName = /(catalog|lookup|reference|ref|dictionary|domain|enum|type|status|config|parameter)$/i.test(lowerName);
+  const isCompactDescriptorTable = table.columns.length <= 4 && nonKeyColumns.length > 0 && descriptorColumns.length === nonKeyColumns.length;
+
+  return hasCatalogLikeName || isCompactDescriptorTable;
+}
+
 // Detecta columnas id_* que probablemente deberian ser FKs hacia otra tabla del esquema.
 function detectLikelyMissingRelationships(table, tables) {
   return table.columns
@@ -596,21 +632,34 @@ function detectLikelyMissingRelationships(table, tables) {
 function detectRedundantReferenceColumns(table, tables) {
   const findings = [];
   const inferredTargets = [];
+  const handledColumns = new Set();
 
   for (const column of table.columns) {
-    if (!/^id_[a-z0-9_]+$/i.test(column.name)) {
-      continue;
-    }
-
-    const entityToken = column.name.replace(/^id_/i, "");
-    const targetTable = findTableByEntityToken(tables, entityToken, table.name);
+    const targetTable = findTargetTableForReferenceColumn(table, column, tables);
 
     if (targetTable) {
       inferredTargets.push(targetTable);
     }
   }
 
+  for (const group of detectDescriptorReferenceGroupsWithoutIdentifier(table, tables)) {
+    findings.push({
+      columnName: group.columns.join(", "),
+      targetTable: group.targetTable.name,
+      detail: `La tabla ${table.name} contiene ${group.columns.join(", ")}, atributos que parecen depender de ${group.targetTable.name}, pero no tiene ${group.idColumnName}; eso sugiere redundancia y falta de referencia por id.`,
+    });
+
+    inferredTargets.push(group.targetTable);
+    for (const columnName of group.columns) {
+      handledColumns.add(columnName.toLowerCase());
+    }
+  }
+
   for (const column of table.columns) {
+    if (column.isForeignKey || isTechnicalMetadataColumn(column.name)) {
+      continue;
+    }
+
     const match = column.name.match(/^([a-z0-9_]+)_(nombre|name|precio|price|ciudad|city|telefono|phone|tienda|store)$/i);
 
     if (!match) {
@@ -618,9 +667,9 @@ function detectRedundantReferenceColumns(table, tables) {
     }
 
     const entityToken = match[1];
-    const idColumnName = `id_${entityToken}`;
-    const hasIdentifier = table.columns.some((entry) => entry.name.toLowerCase() === idColumnName.toLowerCase());
     const targetTable = findTableByEntityToken(tables, entityToken, table.name);
+    const idColumnName = getPreferredReferenceColumnName(entityToken, targetTable);
+    const hasIdentifier = hasReferenceIdentifier(table, entityToken, targetTable);
 
     if (!hasIdentifier || !targetTable) {
       continue;
@@ -633,10 +682,15 @@ function detectRedundantReferenceColumns(table, tables) {
     });
 
     inferredTargets.push(targetTable);
+    handledColumns.add(column.name.toLowerCase());
   }
 
   for (const column of table.columns) {
-    if (/^(id|id_[a-z0-9_]+)$/i.test(column.name)) {
+    if (column.isForeignKey || /^(id|id_[a-z0-9_]+|[a-z0-9_]+_id)$/i.test(column.name) || isTechnicalMetadataColumn(column.name)) {
+      continue;
+    }
+
+    if (handledColumns.has(column.name.toLowerCase())) {
       continue;
     }
 
@@ -647,9 +701,7 @@ function detectRedundantReferenceColumns(table, tables) {
       continue;
     }
 
-    const hasMatchingId = table.columns.some(
-      (entry) => entry.name.toLowerCase() === `id_${entityToken}` || entry.name.toLowerCase() === `id_${normalizeEntityToken(targetTable.name)}`
-    );
+    const hasMatchingId = hasReferenceIdentifier(table, entityToken, targetTable);
 
     if (hasMatchingId) {
       continue;
@@ -666,24 +718,29 @@ function detectRedundantReferenceColumns(table, tables) {
     });
 
     inferredTargets.push(targetTable);
+    handledColumns.add(column.name.toLowerCase());
   }
 
   for (const targetTable of dedupeTables(inferredTargets)) {
     const targetDescriptors = new Set(
       targetTable.columns
-        .filter((column) => !column.isPrimaryKey && !column.isForeignKey)
+        .filter((column) => !column.isPrimaryKey && !column.isForeignKey && !isTechnicalMetadataColumn(column.name))
         .map((column) => column.name.toLowerCase())
     );
     const normalizedTargetDescriptors = new Set(
       targetTable.columns
-        .filter((column) => !column.isPrimaryKey && !column.isForeignKey)
+        .filter((column) => !column.isPrimaryKey && !column.isForeignKey && !isTechnicalMetadataColumn(column.name))
         .map((column) => normalizeDescriptorToken(column.name))
         .filter(Boolean)
     );
     const normalizedTargetName = normalizeEntityToken(targetTable.name);
 
     for (const column of table.columns) {
-      if (/^(id|id_[a-z0-9_]+)$/i.test(column.name)) {
+      if (column.isForeignKey || /^(id|id_[a-z0-9_]+|[a-z0-9_]+_id)$/i.test(column.name) || isTechnicalMetadataColumn(column.name)) {
+        continue;
+      }
+
+      if (handledColumns.has(column.name.toLowerCase())) {
         continue;
       }
 
@@ -796,6 +853,107 @@ function normalizeDescriptorToken(value) {
     .replace(/^(fk_|cod_|codigo_)/i, "");
 }
 
+function detectDescriptorReferenceGroupsWithoutIdentifier(table, tables) {
+  const groups = new Map();
+
+  for (const column of table.columns) {
+    if (column.isForeignKey || isTechnicalMetadataColumn(column.name)) {
+      continue;
+    }
+
+    const match = column.name.match(/^([a-z0-9_]+)_(nombre|name|precio|price|ciudad|city|telefono|phone|tienda|store|direccion|address|location)$/i);
+
+    if (!match) {
+      continue;
+    }
+
+    const entityToken = match[1];
+    const targetTable = findTableByEntityToken(tables, entityToken, table.name);
+
+    if (!targetTable || hasReferenceIdentifier(table, entityToken, targetTable)) {
+      continue;
+    }
+
+    const key = `${entityToken}|${targetTable.name}`;
+    const existing = groups.get(key) ?? {
+      entityToken,
+      targetTable,
+      idColumnName: getPreferredReferenceColumnName(entityToken, targetTable),
+      columns: [],
+    };
+
+    existing.columns.push(column.name);
+    groups.set(key, existing);
+  }
+
+  return [...groups.values()].filter((group) => group.columns.length > 0);
+}
+
+function findTargetTableForReferenceColumn(table, column, tables) {
+  if (column.references?.table) {
+    return tables.find((entry) => entry.name === column.references.table) ?? null;
+  }
+
+  const candidateTokens = [];
+
+  if (/^id_[a-z0-9_]+$/i.test(column.name)) {
+    candidateTokens.push(column.name.replace(/^id_/i, ""));
+  }
+
+  if (/^[a-z0-9_]+_id$/i.test(column.name)) {
+    candidateTokens.push(column.name.replace(/_id$/i, ""));
+  }
+
+  if (column.isForeignKey) {
+    candidateTokens.push(column.name);
+  }
+
+  for (const token of candidateTokens) {
+    const targetTable = findTableByEntityToken(tables, token, table.name);
+
+    if (targetTable) {
+      return targetTable;
+    }
+  }
+
+  return null;
+}
+
+function hasReferenceIdentifier(table, entityToken, targetTable) {
+  if (!targetTable) {
+    return false;
+  }
+
+  const normalizedTarget = normalizeEntityToken(targetTable.name);
+
+  return table.columns.some((column) => {
+    const normalizedColumn = normalizeEntityToken(column.name);
+
+    return (
+      column.name.toLowerCase() === `id_${entityToken}` ||
+      column.name.toLowerCase() === `${entityToken}_id` ||
+      column.name.toLowerCase() === `id_${normalizedTarget}` ||
+      column.name.toLowerCase() === `${normalizedTarget}_id` ||
+      (column.isForeignKey && normalizedColumn === normalizedTarget)
+    );
+  });
+}
+
+function getPreferredReferenceColumnName(entityToken, targetTable) {
+  if (!targetTable) {
+    return `id_${entityToken}`;
+  }
+
+  const normalizedTarget = normalizeEntityToken(targetTable.name);
+  return `${normalizedTarget}_id`;
+}
+
+function isTechnicalMetadataColumn(columnName) {
+  return /^(created|updated|last_update|created_at|updated_at|timestamp|order|position|sort|active|enabled|status)$/i.test(
+    columnName
+  );
+}
+
 // Escoge la mejor columna identificadora conocida para una tabla objetivo.
 function getBestIdentifierColumn(table) {
   return (
@@ -809,8 +967,13 @@ function getBestIdentifierColumn(table) {
 function isLikelyEntityReference(columnName, targetTable) {
   const normalizedColumn = normalizeEntityToken(columnName);
   const normalizedTarget = normalizeEntityToken(targetTable.name);
+  const rawColumn = columnName.toLowerCase();
 
-  return normalizedColumn === normalizedTarget && !/(nombre|name|descripcion|description|title|precio|price|cantidad|total)$/i.test(columnName);
+  if (rawColumn.includes("_") && !/^(id_[a-z0-9_]+|[a-z0-9_]+_id)$/i.test(rawColumn)) {
+    return false;
+  }
+
+  return normalizedColumn === normalizedTarget && !/(nombre|name|descripcion|description|title|precio|price|cantidad|total|telefono|phone|ciudad|city|direccion|address|location)$/i.test(columnName);
 }
 
 // Columnas que suelen repetirse de forma sospechosa entre varias tablas de negocio.

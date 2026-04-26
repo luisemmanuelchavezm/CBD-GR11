@@ -1,15 +1,14 @@
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-import { downloadDiagramPng, serializeSvg } from "./modules/diagram-export.js?v=20260426f";
-import { decorateDiagram, MERMAID_CONFIG, schemaToMermaid } from "./modules/erd-generator.js?v=20260426f";
-import { buildNormalizationSuggestion, formatQualityReport } from "./modules/normalization.js?v=20260426f";
-import { parseSqlSchema } from "./modules/sql-parser.js?v=20260426f";
+import { downloadDiagramPng, serializeSvg } from "./modules/diagram-export.js?v=20260426g";
+import { decorateDiagram, MERMAID_CONFIG, schemaToMermaid } from "./modules/erd-generator.js?v=20260426g";
+import { buildNormalizationSuggestion, formatQualityReport } from "./modules/normalization.js?v=20260426g";
+import { parseSqlSchema } from "./modules/sql-parser.js?v=20260426g";
 
 // Controlador principal de la interfaz: conecta eventos, estado de vista y módulos puros.
 
 const sqlInput = document.querySelector("#sql-input");
 const mermaidOutput = document.querySelector("#mermaid-output");
 const analysisOutput = document.querySelector("#analysis-output");
-const normalizedSqlOutput = document.querySelector("#normalized-sql-output");
 const renderButton = document.querySelector("#render");
 const normalizeButton = document.querySelector("#normalize");
 const copyButton = document.querySelector("#copy-mermaid");
@@ -51,7 +50,6 @@ mermaid.initialize(getMermaidConfig(themeSelect.value));
 setStatus("Esperando SQL.");
 setActionsEnabled(false);
 clearAnalysisOutput();
-clearNormalizedSqlOutput();
 
 renderButton.addEventListener("click", handleRender);
 normalizeButton.addEventListener("click", handleNormalizationAnalysis);
@@ -83,13 +81,11 @@ async function handleRender() {
   try {
     const schema = parseSqlSchema(sql);
     clearAnalysisOutput();
-    clearNormalizedSqlOutput();
     currentDiagramMode = "original";
     await renderSchema(schema, "ERD generado correctamente.");
   } catch (error) {
     resetDiagramState();
     clearAnalysisOutput();
-    clearNormalizedSqlOutput();
     setStatus(error.message || "No se pudo generar el ERD.", "error");
   }
 }
@@ -113,7 +109,6 @@ async function handleNormalizationAnalysis() {
     const suggestion = buildNormalizationSuggestion(schema);
 
     analysisOutput.value = formatQualityReport(suggestion.analysis, schema);
-    normalizedSqlOutput.value = suggestion.normalizedSql;
     currentDiagramMode = "normalized";
 
     await renderSchema(
@@ -125,7 +120,6 @@ async function handleNormalizationAnalysis() {
     );
   } catch (error) {
     analysisOutput.value = "";
-    normalizedSqlOutput.value = "";
     resetDiagramState();
     setStatus(error.message || "No se pudo analizar la normalización.", "error");
   }
@@ -184,7 +178,6 @@ async function handleFileSelection(event) {
   sqlInput.value = await file.text();
   currentDiagramMode = "original";
   clearAnalysisOutput();
-  clearNormalizedSqlOutput();
   setStatus(`Archivo ${file.name} cargado.`, "success");
   event.target.value = "";
 }
@@ -421,11 +414,6 @@ function applyUiTheme(theme) {
 // Limpia el panel textual del informe de análisis.
 function clearAnalysisOutput() {
   analysisOutput.value = "";
-}
-
-// Limpia el panel textual del SQL sugerido.
-function clearNormalizedSqlOutput() {
-  normalizedSqlOutput.value = "";
 }
 
 // Muestra mensajes de estado con variantes visuales de éxito o error.

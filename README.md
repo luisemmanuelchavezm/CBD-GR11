@@ -65,7 +65,6 @@ La zona derecha se divide en varias salidas utiles:
 - `Diagrama y Mermaid`: muestra el ERD renderizado.
 - `Código Mermaid`: muestra el texto Mermaid generado a partir del SQL.
 - `Validación y normalización`: muestra observaciones estructurales del modelo.
-- `Propuesta SQL normalizada`: muestra una propuesta heuristica de descomposicion cuando detecta problemas de diseño.
 
 Esto permite comparar el modelo grafico con el texto Mermaid y con el analisis de normalizacion sin salir de la app.
 
@@ -102,7 +101,7 @@ Entre otras cosas, revisa:
 - dependencias sospechosas,
 - oportunidades de separar entidades.
 
-Cuando encuentra un caso mejorable, genera observaciones en `Validación y normalización` y propone una version SQL orientativa en `Propuesta SQL normalizada`.
+Cuando encuentra un caso mejorable, genera observaciones en `Validación y normalización`.
 
 ### 7. Flujo recomendado
 
@@ -134,12 +133,11 @@ El parser esta pensado para scripts con este formato:
 
 ## Botón Tabla normalizada
 
-El botón `Tabla normalizada` no reescribe automáticamente el SQL original, pero genera dos salidas heurísticas:
+El botón `Tabla normalizada` no reescribe automáticamente el SQL original. Lo que hace es generar hallazgos heurísticos como:
 
 - comprobaciones de 1FN, 2FN y 3FN,
 - reglas de integridad estructural,
 - observaciones de diseño,
-- propuestas de descomposición cuando detecta columnas descriptivas embebidas o atributos repetidos,
-- un bloque aparte con SQL sugerido para la descomposición detectada.
+- propuestas de descomposición cuando detecta columnas descriptivas embebidas o atributos repetidos.
 
 Ejemplo: si encuentra una tabla tipo `pedidos(id_pedido, cliente_nombre, cliente_direccion)`, propondrá separar `CLIENTES` y sustituir los atributos embebidos por `cliente_id`.
