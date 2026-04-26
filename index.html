@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SQL a ERD</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css?v=20260426" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel panel-input">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Entrada</p>
+            <h1>SQL a ERD</h1>
+          </div>
+          <p class="panel-copy">
+            Pega un script PostgreSQL o carga un archivo para generar el ERD y validar el modelo.
+          </p>
+        </div>
+
+        <div class="toolbar">
+          <label class="button button-secondary" for="sql-file">Cargar .sql</label>
+          <input id="sql-file" type="file" accept=".sql,.txt" hidden />
+          <button id="normalize" class="button button-secondary" type="button">Tabla normalizada</button>
+          <label class="theme-control" for="theme-select">
+            <span>Tema</span>
+            <select id="theme-select">
+              <option value="neutral">Neutral</option>
+              <option value="forest">Forest</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <button id="render" class="button" type="button">Generar ERD</button>
+        </div>
+
+        <label class="label" for="sql-input">Script SQL</label>
+        <textarea
+          id="sql-input"
+          spellcheck="false"
+          placeholder="CREATE TABLE ...\nALTER TABLE ... FOREIGN KEY ..."
+        ></textarea>
+
+        <div class="status-row">
+          <p id="status" class="status">Esperando SQL.</p>
+          <p id="stats" class="stats"></p>
+        </div>
+      </section>
+
+      <section class="panel panel-output">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Salida</p>
+            <h2>Diagrama y Mermaid</h2>
+          </div>
+          <div class="toolbar toolbar-output">
+            <button id="zoom-out" class="button button-secondary" type="button">Zoom -</button>
+            <button id="zoom-reset" class="button button-secondary" type="button">100%</button>
+            <button id="zoom-in" class="button button-secondary" type="button">Zoom +</button>
+            <button id="copy-mermaid" class="button button-secondary" type="button">Copiar Mermaid</button>
+            <button id="download-mermaid" class="button button-secondary" type="button">Descargar .mmd</button>
+            <button id="download-png" class="button button-secondary" type="button">Descargar PNG</button>
+            <button id="download-svg" class="button button-secondary" type="button">Descargar SVG</button>
+          </div>
+        </div>
+
+        <div class="diagram-shell">
+          <div id="diagram" class="diagram-empty">
+            <p>El ERD aparecerá aquí.</p>
+          </div>
+        </div>
+
+        <p class="diagram-help">Usa la rueda del mouse para acercar o alejar y arrastra dentro del ERD para moverte.</p>
+
+        <div class="legend" aria-label="Leyenda semántica">
+          <span class="legend-chip legend-chip-dimension">Dimensión</span>
+          <span class="legend-chip legend-chip-fact">Hechos</span>
+          <span class="legend-chip legend-chip-junction">Puente N:M</span>
+          <span class="legend-chip legend-chip-standard">General</span>
+        </div>
+
+        <div class="label-row">
+          <label class="label" for="mermaid-output">Código Mermaid</label>
+          <button id="copy-mermaid-code" class="button button-secondary button-inline" type="button">Copiar código Mermaid</button>
+        </div>
+        <textarea id="mermaid-output" spellcheck="false" readonly></textarea>
+
+        <label class="label" for="analysis-output">Validación y normalización</label>
+        <textarea
+          id="analysis-output"
+          spellcheck="false"
+          readonly
+          placeholder="El informe de normalización aparecerá aquí."
+        ></textarea>
+
+        <label class="label" for="normalized-sql-output">Propuesta SQL normalizada</label>
+        <textarea
+          id="normalized-sql-output"
+          spellcheck="false"
+          readonly
+          placeholder="La propuesta de SQL normalizado aparecerá aquí."
+        ></textarea>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js?v=20260426f"></script>
+  </body>
+</html>
