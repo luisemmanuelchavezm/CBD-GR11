@@ -30,17 +30,17 @@ Tambien puedes abrir `index.html` directamente y usar `Cargar .sql` para selecci
 
 La aplicacion es estatica, asi que en Render debe publicarse como `Static Site`.
 
-Este repositorio ya incluye [render.yaml](c:/Users/emman/OneDrive/Escritorio/cbd/render.yaml) con una configuracion minima para Render Blueprint:
+Este repositorio ya incluye [render.yaml](render.yaml) con una configuracion minima para Render Blueprint:
 
 ```yaml
 services:
-	- type: web
-		name: sql-a-erd
-		runtime: static
-		plan: free
-		autoDeployTrigger: commit
-		buildCommand: echo "Static site ready"
-		staticPublishPath: .
+  - type: web
+    name: sql-a-erd
+    runtime: static
+    plan: free
+    autoDeployTrigger: commit
+    buildCommand: echo "Static site ready"
+    staticPublishPath: .
 ```
 
 Pasos:
@@ -50,11 +50,30 @@ Pasos:
 3. Conecta el repositorio.
 4. Si usas `Blueprint`, Render tomara la configuracion del archivo automaticamente.
 5. Si lo haces manualmente, usa:
-	 `Build Command`: `echo "Static site ready"`
-	 `Publish Directory`: `.`
+   `Build Command`: `echo "Static site ready"`
+   `Publish Directory`: `.`
 6. Crea el servicio y espera el primer deploy.
 
-Resultado esperado: Render servira [index.html](c:/Users/emman/OneDrive/Escritorio/cbd/index.html) como sitio estatico y todos los archivos de la raiz quedaran publicados.
+Resultado esperado: Render servira [index.html](index.html) como sitio estatico y todos los archivos de la raiz quedaran publicados.
+
+## GitHub
+
+El repositorio remoto ya esta conectado a GitHub y la rama de trabajo publicada es `main`.
+
+Para terminar de limpiar ramas en GitHub:
+
+1. Entra al repositorio en GitHub.
+2. Ve a `Settings` -> `Branches`.
+3. Cambia la rama por defecto de `master` a `main`.
+4. Borra la rama remota `master`.
+
+Si quieres hacerlo por consola despues de cambiar la rama por defecto en GitHub, usa:
+
+```powershell
+git push origin --delete master
+```
+
+Una vez conectado a Render, cada push a `main` puede disparar un nuevo deploy automatico.
 
 ## Alcance actual
 
