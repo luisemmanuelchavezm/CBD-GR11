@@ -37,7 +37,6 @@ services:
   - type: web
     name: sql-a-erd
     runtime: static
-    plan: free
     autoDeployTrigger: commit
     buildCommand: echo "Static site ready"
     staticPublishPath: .
@@ -49,7 +48,7 @@ Pasos:
 2. En Render, entra a `New +` -> `Blueprint` si quieres que lea `render.yaml`, o `New +` -> `Static Site` si prefieres configurarlo manualmente.
 3. Conecta el repositorio.
 4. Si usas `Blueprint`, Render tomara la configuracion del archivo automaticamente.
-5. Si lo haces manualmente, usa:
+5. Si lo haces manualmente, usa la rama `main` y estos valores:
    `Build Command`: `echo "Static site ready"`
    `Publish Directory`: `.`
 6. Crea el servicio y espera el primer deploy.

@@ -2,7 +2,6 @@ services:
   - type: web
     name: sql-a-erd
     runtime: static
-    plan: free
     autoDeployTrigger: commit
     buildCommand: echo "Static site ready"
     staticPublishPath: .
