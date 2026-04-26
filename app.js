@@ -1,8 +1,8 @@
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-import { downloadDiagramPng, serializeSvg } from "./modules/diagram-export.js?v=20260426g";
-import { decorateDiagram, MERMAID_CONFIG, schemaToMermaid } from "./modules/erd-generator.js?v=20260426g";
-import { buildNormalizationSuggestion, formatQualityReport } from "./modules/normalization.js?v=20260426g";
-import { parseSqlSchema } from "./modules/sql-parser.js?v=20260426g";
+import { downloadDiagramPng, serializeSvg } from "./modules/diagram-export.js?v=20260426h";
+import { decorateDiagram, MERMAID_CONFIG, schemaToMermaid } from "./modules/erd-generator.js?v=20260426h";
+import { buildNormalizationSuggestion, formatQualityReport } from "./modules/normalization.js?v=20260426h";
+import { parseSqlSchema } from "./modules/sql-parser.js?v=20260426h";
 
 // Controlador principal de la interfaz: conecta eventos, estado de vista y módulos puros.
 
