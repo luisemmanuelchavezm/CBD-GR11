@@ -148,11 +148,10 @@ function scoreColumn(column) {
 
 // Marca cada entidad con su semántica y ajusta relleno y borde visual.
 function applyEntityStyles(diagramElement, schema) {
-  const entityNodes = [...diagramElement.querySelectorAll('[id^="entity-"]')];
+  const entityNodes = [...diagramElement.querySelectorAll('.nodes > g.node, [id^="entity-"]')];
 
   for (const node of entityNodes) {
-    const titleElement = node.querySelector(".er.entityLabel");
-    const tableName = titleElement?.textContent?.trim();
+    const tableName = getEntityTableName(node);
     const table = schema.tables.find((entry) => entry.name === tableName);
 
     if (!table) {
@@ -162,15 +161,30 @@ function applyEntityStyles(diagramElement, schema) {
     node.setAttribute("data-semantic-type", table.semanticType);
     node.setAttribute("data-table-name", table.name);
 
-    const shape = node.querySelector("rect") || node.querySelector("polygon");
+    const palette = getTablePalette(table);
+    const shapes = node.querySelectorAll(".outer-path path, .row-rect-odd path, .row-rect-even path, .divider path, rect, polygon");
 
-    if (shape) {
-      const palette = getTablePalette(table);
+    for (const shape of shapes) {
       shape.style.fill = palette.fill;
       shape.style.stroke = palette.stroke;
       shape.style.strokeWidth = "1.5px";
     }
   }
+}
+
+// Extrae el nombre de la tabla desde la etiqueta visible o, como fallback, desde el id del nodo Mermaid.
+function getEntityTableName(node) {
+  const label = node.querySelector(".label.name, .er.entityLabel");
+  const labelText = label?.textContent?.trim();
+
+  if (labelText) {
+    return labelText;
+  }
+
+  const nodeId = node.getAttribute("id") || "";
+  const idMatch = nodeId.match(/-entity-(.+?)-\d+$/);
+
+  return idMatch?.[1] ?? null;
 }
 
 // Resalta el trazo de las relaciones según su cardinalidad lógica.
